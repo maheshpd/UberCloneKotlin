@@ -46,5 +46,11 @@ dependencies {
     //Firebase UI
     implementation 'com.firebaseui:firebase-ui-auth:6.2.1'
 
+    //Material
+    implementation 'com.google.android.material:material:1.1.0'
+
+    //Firebase database
+    implementation 'com.google.firebase:firebase-database:19.3.1'
+
 
 }
