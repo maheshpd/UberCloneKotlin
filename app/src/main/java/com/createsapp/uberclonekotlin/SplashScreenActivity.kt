@@ -89,21 +89,30 @@ class SplashScreenActivity : AppCompatActivity() {
                 override fun onCancelled(error: DatabaseError) {
                     Toast.makeText(this@SplashScreenActivity, error.message, Toast.LENGTH_SHORT)
                         .show()
+
                 }
 
                 override fun onDataChange(snapshot: DataSnapshot) {
                     if (snapshot.exists()) {
-                        Toast.makeText(
+                        /*Toast.makeText(
                             this@SplashScreenActivity,
                             "User already register!",
                             Toast.LENGTH_SHORT
-                        ).show()
+                        ).show()*/
+                        val model = snapshot.getValue(DriverInfoModel::class.java)
+                        goToHomActivity(model)
                     } else {
                         showRegisterLayout()
                     }
                 }
 
             })
+    }
+
+    private fun goToHomActivity(model: DriverInfoModel?) {
+        Common.currentUser = model
+        startActivity(Intent(this, DriverHomeActivity::class.java))
+        finish()
     }
 
     private fun showRegisterLayout() {
@@ -177,6 +186,8 @@ class SplashScreenActivity : AppCompatActivity() {
                             Toast.LENGTH_SHORT
                         ).show()
                         dialog.dismiss()
+
+                        goToHomActivity(model)
 
                         progress_bar.visibility = View.GONE
                     }
