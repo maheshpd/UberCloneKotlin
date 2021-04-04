@@ -148,7 +148,7 @@ class SplashScreenActivity : AppCompatActivity() {
         if (FirebaseAuth.getInstance().currentUser!!.phoneNumber != null &&
             !TextUtils.isDigitsOnly(FirebaseAuth.getInstance().currentUser!!.phoneNumber)
         )
-            edit_phone_number.setText(FirebaseAuth.getInstance().currentUser!!.phoneNumber)
+            edt_phone_number.setText(FirebaseAuth.getInstance().currentUser!!.phoneNumber)
 
         //View
         builder.setView(itemView)

@@ -1,7 +1,10 @@
 package com.createsapp.uberclonekotlin.ui.home
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.location.Address
+import android.location.Geocoder
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
@@ -10,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.RelativeLayout
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.createsapp.uberclonekotlin.Common
@@ -32,6 +36,8 @@ import com.karumi.dexter.listener.PermissionDeniedResponse
 import com.karumi.dexter.listener.PermissionGrantedResponse
 import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.single.PermissionListener
+import java.io.IOException
+import java.util.*
 
 class HomeFragment : Fragment(), OnMapReadyCallback {
 
@@ -47,7 +53,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
 
     //Online system
     private lateinit var onlineRef: DatabaseReference
-    private lateinit var currentUserRef: DatabaseReference
+    private  var currentUserRef: DatabaseReference?=null
     private lateinit var driverLocationRef: DatabaseReference
     private lateinit var geoFire: GeoFire
 
@@ -57,8 +63,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
         }
 
         override fun onDataChange(snapshot: DataSnapshot) {
-            if (snapshot.exists())
-                currentUserRef.onDisconnect().removeValue()
+            if (snapshot.exists() && currentUserRef != null)
+                currentUserRef!!.onDisconnect().removeValue()
         }
 
     }
@@ -100,16 +106,6 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
     private fun init() {
 
         onlineRef = FirebaseDatabase.getInstance().reference.child(".info/connected")
-        driverLocationRef =
-            FirebaseDatabase.getInstance().getReference(Common.DRIVER_LOCATION_REFERENCE)
-        currentUserRef =
-            FirebaseDatabase.getInstance().getReference(Common.DRIVER_LOCATION_REFERENCE).child(
-                FirebaseAuth.getInstance().currentUser!!.uid
-            )
-
-        geoFire = GeoFire(driverLocationRef)
-
-        registerOnlineSystem()
 
         locationRequest = LocationRequest()
         locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
@@ -127,31 +123,73 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
                 )
                 mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(newPos, 18f))
 
-                //Update Location
-                geoFire.setLocation(
-                    FirebaseAuth.getInstance().currentUser!!.uid,
-                    GeoLocation(
+                val geoCoder = Geocoder(requireContext(), Locale.getDefault())
+                val addressList: List<Address>?
+                try {
+                    addressList = geoCoder.getFromLocation(
                         locationResult.lastLocation.latitude,
                         locationResult.lastLocation.longitude
-                    )
-                ) { key: String?, error: DatabaseError? ->
-                    if (error != null)
-                        Snackbar.make(
-                            mapFragment.requireView(),
-                            error.message,
-                            Snackbar.LENGTH_LONG
-                        ).show()
-                    else
-                        Snackbar.make(
-                            mapFragment.requireView(),
-                            "You're online!",
-                            Snackbar.LENGTH_SHORT
-                        ).show()
+                    ,1)
+
+                    val cityName = addressList[0].locality
+
+                    driverLocationRef =
+                        FirebaseDatabase.getInstance()
+                            .getReference(Common.DRIVER_LOCATION_REFERENCE).child(cityName)
+                    currentUserRef =
+                        driverLocationRef.child(
+                            FirebaseAuth.getInstance().currentUser!!.uid
+                        )
+
+                    geoFire = GeoFire(driverLocationRef)
+
+
+                    //Update Location
+                    geoFire.setLocation(
+                        FirebaseAuth.getInstance().currentUser!!.uid,
+                        GeoLocation(
+                            locationResult.lastLocation.latitude,
+                            locationResult.lastLocation.longitude
+                        )
+                    ) { key: String?, error: DatabaseError? ->
+                        if (error != null)
+                            Snackbar.make(
+                                mapFragment.requireView(),
+                                error.message,
+                                Snackbar.LENGTH_LONG
+                            ).show()
+                        else
+                            Snackbar.make(
+                                mapFragment.requireView(),
+                                "You're online!",
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                    }
+
+                    registerOnlineSystem()
+
+
+
+                } catch (e: IOException) {
+                    Snackbar.make(requireView(), e.message!!, Snackbar.LENGTH_SHORT).show()
                 }
+
+
+
             }
         }
         fusedLocationProviderClient =
             LocationServices.getFusedLocationProviderClient(requireContext())
+        if (ActivityCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         fusedLocationProviderClient.requestLocationUpdates(
             locationRequest,
             locationCallback,
@@ -169,6 +207,16 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
             .withListener(object : PermissionListener {
                 override fun onPermissionGranted(p0: PermissionGrantedResponse?) {
                     //Enable button first
+                    if (ActivityCompat.checkSelfPermission(
+                            requireContext(),
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                            requireContext(),
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        return
+                    }
                     mMap.isMyLocationEnabled = true
                     mMap.uiSettings.isMyLocationButtonEnabled = true
                     mMap.setOnMyLocationButtonClickListener {
@@ -188,12 +236,12 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
                     }
 
                     //Layout
-                    val view = mapFragment.view!!
+                    val view = mapFragment.requireView()!!
                         .findViewById<View>("1".toInt())!!
                         .parent!! as View
                     val locationButton = view.findViewById<View>("2".toInt())
                     val params = locationButton.layoutParams as RelativeLayout.LayoutParams
-                    params.addRule(RelativeLayout.ALIGN_TOP, 0)
+                    params.addRule(RelativeLayout.ALIGN_PARENT_TOP, 0)
                     params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE)
                     params.bottomMargin = 50
                 }
